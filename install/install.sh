@@ -1,8 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SKILLS_SRC="$(cd "$(dirname "$0")/../skills" && pwd)"
+REPO="moneychien19/claude-skills"
+BRANCH="main"
 SKILLS_DEST="$HOME/.claude/skills"
+
+# When run via `curl | bash`, BASH_SOURCE[0] is empty or /dev/stdin.
+# In that case, download the repo tarball from GitHub instead.
+SCRIPT_DIR=""
+if [[ -n "${BASH_SOURCE[0]:-}" ]] && [[ "${BASH_SOURCE[0]}" != "/dev/fd/"* ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || true
+fi
+
+TMP_DIR=""
+if [[ -n "$SCRIPT_DIR" ]] && [[ -d "$SCRIPT_DIR/../skills" ]]; then
+  SKILLS_SRC="$(cd "$SCRIPT_DIR/../skills" && pwd)"
+else
+  echo "Downloading skills from GitHub ($REPO@$BRANCH)..."
+  TMP_DIR="$(mktemp -d)"
+  trap 'rm -rf "$TMP_DIR"' EXIT
+  curl -fsSL "https://api.github.com/repos/$REPO/tarball/$BRANCH" \
+    | tar xz -C "$TMP_DIR" --strip-components=1
+  SKILLS_SRC="$TMP_DIR/skills"
+fi
 
 mkdir -p "$SKILLS_DEST"
 
