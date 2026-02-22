@@ -2,20 +2,14 @@
 
 A personal repository for managing Claude Code skills.
 
-Skills are authored as flat `.md` files under `skills/`. The install scripts convert them into the directory structure Claude Code requires (`~/.claude/skills/<name>/SKILL.md`).
+Skills are authored as flat `.md` files under `skills/`. The install script converts them into the directory structure Claude Code requires (`~/.claude/skills/<name>/SKILL.md`).
 
 ## Installation
 
-### macOS / Linux
+Works on macOS, Linux, and Windows (Bash).
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/moneychien19/claude-skills/main/install/install.sh | bash
-```
-
-### Windows (PowerShell)
-
-```powershell
-(iwr -useb https://raw.githubusercontent.com/moneychien19/claude-skills/main/install/install.ps1).Content | iex
 ```
 
 ## Adding a Skill

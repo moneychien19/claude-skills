@@ -1,31 +1,21 @@
 # Install
 
-These scripts install all skills from `skills/` into `~/.claude/skills/`.
+Installs all skills from `skills/` into `~/.claude/skills/`.
 
 Each `skills/<name>.md` is converted into `~/.claude/skills/<name>/SKILL.md` — the directory structure Claude Code requires.
 
 Re-running the script is safe: existing skills are overwritten in place.
 
-## macOS / Linux
+Works on macOS, Linux, and Windows (Git). On Windows, Bash resolves `$HOME` to `C:\Users\<user>`, so skills are installed to the correct location (`C:\Users\<user>\.claude\skills\`).
 
-```bash
-bash install/install.sh
-```
-
-Or via `curl` (replace `main` with a tag/commit as needed):
+## Remote (recommended)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/moneychien19/claude-skills/main/install/install.sh | bash
 ```
 
-## Windows (PowerShell)
+## Local (from a cloned repo)
 
-```powershell
-.\install\install.ps1
-```
-
-Or via `iwr`:
-
-```powershell
-(iwr -useb https://raw.githubusercontent.com/moneychien19/claude-skills/main/install/install.ps1).Content | iex
+```bash
+bash install/install.sh
 ```
