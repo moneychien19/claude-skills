@@ -15,7 +15,7 @@ curl -fsSL https://raw.githubusercontent.com/moneychien19/claude-skills/main/ins
 ### Windows (PowerShell)
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/moneychien19/claude-skills/main/install/install.ps1 | iex
+(iwr -useb https://raw.githubusercontent.com/moneychien19/claude-skills/main/install/install.ps1).Content | iex
 ```
 
 ## Adding a Skill
