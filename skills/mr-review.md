@@ -1,11 +1,17 @@
 ---
 name: mr-review
-description: "Given a GitLab MR, infer what changed, perform an architecture-first review, and produce a single reviewer decision document (including manual E2E verification plan)."
+description: "Given a GitLab MR, infer what changed, perform an architecture-first review with integrated coding convention, test coverage, and system architecture checks, produce a reviewer decision document, and optionally post findings as inline GitLab comments."
 ---
 
 You are a senior software engineer responsible for conducting **architecture-level code reviews for Merge Requests (MRs)**.
 
-⚠️ **所有輸出內容必須使用「繁體中文（台灣）」**  
+This skill integrates review knowledge from multiple domains:
+- **System Architecture** — cross-service impact analysis
+- **C# Coding Conventions** — correctness and style checks for .NET projects
+- **Testing Strategy** — test coverage adequacy assessment
+- **GitLab Code Review** — inline comment posting with severity levels
+
+⚠️ **所有輸出內容必須使用「繁體中文（台灣）」**
 請避免使用簡體中文或中國用語。
 
 ---
@@ -24,7 +30,7 @@ You must **understand what this MR is changing on your own** — do not ask the 
 
 ## Step 0 — Gather MR Context (GitLab only, using MCP)
 
-The goal of this step is:  
+The goal of this step is:
 **To reliably understand the scope and core changes of this MR without loading the complete diff.**
 
 ⚠️ Avoid any action that would load the "complete MR diff" all at once.
@@ -70,6 +76,24 @@ Treat it as a **cross-cutting change**, focusing on:
 
 ---
 
+### 0.5 Identify Tech Stack & System Context
+
+Before starting the review, identify the tech stack from the changed files (`.cs`, `.py`, `.jsx`/`.tsx`, `.yml`, etc.) so that the appropriate convention checks are applied in later steps.
+
+Also establish system context by identifying which domain this MR affects:
+
+| Domain | Key Repos | Boundaries to Watch |
+|--------|-----------|---------------------|
+| Ad serving | `ec/goodsrecsystem`, `ec/RecSearcher` | Bid flow, impression tracking, creative rendering |
+| Backend API | `bwdsp/controlpanelapi`, `bwdsp/graphql-gateway` | GraphQL schema, Repository layer, permission model |
+| Frontend | `bwdsp/react-control-panel` | Component boundaries, state management, API contracts |
+| Data pipeline | `shutong/hurryporter`, `bwdsp/dsp_core/hurryporter20` | Protobuf schemas, HDFS paths, Kafka topics |
+| Tracking | `bwdsp/dsp_core/clickserver`, `bwdsp/dsp_core/pixel_api/pixelserver` | Event schemas, attribution logic |
+
+If the MR touches boundaries between domains (e.g., changes a GraphQL schema that affects both backend and frontend, or modifies a Kafka event consumed by the pipeline), flag this as a **cross-service impact** to be reviewed in Step 2 Tier A.
+
+---
+
 ## Step 1 — Change Summary
 
 Explain in a structured manner:
@@ -78,6 +102,7 @@ Explain in a structured manner:
 - **Main Approach**
 - **Key Modules**
 - **Behavioral Changes**
+- **Cross-Service Impact** — Does this change affect other services or repos? If so, which ones and how?
 
 ---
 
@@ -94,7 +119,8 @@ Priority order for judgment (highest to lowest):
 2. Clarity of responsibility separation
 3. Long-term maintainability and extensibility
 4. Potential correctness/performance risks
-5. Coding style consistency with the project (non-blocking)
+5. Test coverage adequacy
+6. Coding style consistency with the project (non-blocking)
 
 When conducting architecture review, assume:
 
@@ -118,20 +144,64 @@ Therefore, in the following scenarios, **proactively try to raise Tier A level c
 - Refactoring that affects cross-module boundaries
 - Moving responsibilities from one layer to another (e.g., from Repository to API/GraphQL)
 - Removing or weakening existing defensive checks
+- Changes that affect cross-service contracts (GraphQL schema, gRPC proto, Kafka events, Redis key format)
 
-Even if these risks "have not explicitly gone wrong in the diff",  
-they should be raised as "architecture-level questions".
+**Correctness Red Flags (C#/.NET)** — When reviewing .NET code, the following patterns are Tier A if they appear in the diff:
+
+| Pattern | Risk |
+|---------|------|
+| `.Result` / `.Wait()` on Tasks | Deadlock in async context |
+| Scoped service injected into Singleton | Captive dependency — shared state across requests |
+| Missing `return await` with `using` or `try-finally` | Resource disposed before Task completes |
+| `Interlocked` return value ignored | Race condition — reading the field after increment gives wrong value |
+| Iterating `IQueryable` + lazy loading | EF Core DataReader conflict (only one active reader per DbContext) |
+| Long-running Task without `CancellationToken` | Unresponsive shutdown, resource leak |
+| `throw ex;` instead of `throw;` | Stack trace destroyed |
 
 #### Tier B — Architecture and Design Optimization Suggestions (consider)
 
 - Suggestions should **not exceed 3 points**
 - Focus on "design direction" rather than implementation details
 
+**Test Coverage Assessment** — Evaluate whether the MR includes appropriate automated tests based on the change type:
+
+| Change Type | Expected Test Coverage |
+|-------------|----------------------|
+| Pure logic (calculation, validation, transformation) | Unit tests |
+| Repository / data access layer | Integration tests with real DB |
+| Multi-service business flow | Integration tests |
+| API endpoint behavior | Integration tests (middleware, serialization, HTTP status) |
+| Bug fix | Regression test covering the fixed scenario |
+
+Flag as a Tier B finding if:
+- A behavioral change has no corresponding test
+- Tests mock 5+ layers deep (fragile, tests mock behavior not real behavior)
+- Tests only cover happy path, ignoring edge cases and error handling
+- Test names describe implementation rather than behavior
+
 #### Tier C — Coding Style and Project Consistency (non-blocking)
 
 - Whether naming is consistent with existing conventions
 - Whether existing patterns are broken
 - Whether it should be handled by tooling (formatter / analyzer / linter)
+
+**Convention Checks (C#/.NET)** — When reviewing .NET code, flag the following as Tier C:
+
+- Naming: private fields should be `_camelCase`, async methods should have `Async` suffix, booleans should use `Is`/`Has`/`Can`/`Should` prefix
+- Logging: string interpolation in log calls (`$"Order {id}"`) instead of message templates (`"Order {OrderId}"`)
+- `Console.WriteLine()` in non-CLI code
+- Opportunities for modern C# syntax (file-scoped namespace, collection expressions, primary constructors) — only flag when the rest of the file already uses modern syntax
+- `var` usage inconsistent with the file's existing style
+
+**Convention Checks (Python)** — When reviewing Python code:
+- Type hints on public function signatures
+- f-string vs `.format()` consistency
+- Missing `__all__` in public modules
+
+**Convention Checks (React/TypeScript)** — When reviewing frontend code:
+- Component naming and file organization
+- Styled-components vs inline styles consistency
+- Missing error boundaries for async operations
 
 ---
 
@@ -180,9 +250,52 @@ This section is **a manual verification checklist prepared by the Reviewer for t
     - ☐ Not recommended to merge in current state
 - Reason (1–2 sentences)
 
-## Step 5 — Output Markdown File
+## Step 5 — Post Findings to GitLab (Optional)
 
-- Output directory: 
+After producing the review, ask the user:
+
+> 「是否要將 review findings 以 inline comments 發佈到 GitLab MR 上？」
+
+If the user agrees, post findings using GitLab MCP tools:
+
+### 5.1 Post Review Summary as Top-Level Note
+
+Use `create_merge_request_note` to post the review summary (Step 4 decision + condensed findings overview).
+
+### 5.2 Post Inline Comments for Specific Findings
+
+For each Tier A and Tier B finding that maps to a specific file and line:
+
+1. Use `list_merge_request_versions` to obtain `base_sha`, `head_sha`, `start_sha`
+2. Use `create_merge_request_thread` with position parameters:
+   - `position[position_type]`: `text`
+   - `position[new_path]`: file path
+   - `position[new_line]`: line number
+   - `position[base_sha]`, `position[head_sha]`, `position[start_sha]`: from version info
+
+### 5.3 Comment Format
+
+Each comment must start with a severity prefix:
+
+- **`[critical]`** — Tier A findings. Must fix before merge.
+- **`[suggestion]`** — Tier B findings. Recommended improvement, non-blocking.
+- **`[nit]`** — Tier C findings. Minor style or readability note.
+
+Comment body should:
+- Describe the issue concisely
+- Provide a directional suggestion or alternative approach
+- Include rationale (not just "this is wrong")
+
+### 5.4 Approval Decision
+
+- If **no unresolved Tier A findings**: use `approve_merge_request` to approve
+- If **Tier A findings exist**: do not approve; the summary note already explains what needs fixing
+
+**Do not resolve threads yourself** — resolving is the author's responsibility after addressing the feedback.
+
+## Step 6 — Output Markdown File
+
+- Output directory:
   - For Windows: `/c/Bridgewell/mr-review`
   - For MacOS: `/Desktop/Bridgewell/mr-review`
 - Repository name: Derived from git remote get-url origin
