@@ -84,14 +84,16 @@ Record the resolved `username` and `display_name` for later use.
 
 This is the highest-signal source for understanding the colleague's **own voice** — issue discussions have minimal AI involvement.
 
-1. Fetch backend-related issues from `bwdsp/kanban/backlog`:
-   - `list_issues` with `labels: ["RD_Backend"]`, `state: "all"`, `per_page: 50`, `order_by: "updated_at"`, `sort: "desc"`
-2. **Prioritize high-discussion issues** — sort by comment count (from issue metadata), pick the **top 10 most-discussed issues**
-   - High-discussion issues have the densest signal; low-comment issues waste API calls
-3. From those 10 issues, ensure **time dispersion** — if they cluster in one period, swap some for older high-comment issues
-4. For each selected issue, call `list_issue_discussions` with `project_id: "bwdsp/kanban/backlog"`
-5. Filter to comments written **by the colleague** (match by username)
-6. Keep up to **15 comments total** — if more than 15, spread across 3 time periods (5 per period)
+Iteratively fetch issues from `bwdsp/kanban/backlog` until **15 comments** from the colleague are collected:
+
+1. Fetch first batch: `list_issues` with `labels: ["RD_Backend"]`, `state: "all"`, `per_page: 20`, `order_by: "updated_at"`, `sort: "desc"`
+2. For each issue in the batch, call `list_issue_discussions`
+3. Filter to comments written **by the colleague** (match by username), append to collected comments
+4. If collected comments < 15 and more pages exist, fetch next page (`page: 2`, etc.)
+5. **Stop** as soon as any of these conditions is met:
+   - 15 comments collected (target reached)
+   - 5 pages scanned (cap: 100 issues max to avoid runaway token usage)
+6. If collected comments > 15, apply **time dispersion**: sort by timestamp, divide into 3 periods, keep 5 per period
 7. These will be analyzed in Step 5 for: 關注面向、溝通語氣、主動性
 
 ### 1.3 MRs Reviewed by the Colleague
@@ -149,8 +151,8 @@ For each of the 5 selected MRs:
 1. Call `mr_discussions` to get all discussion threads (includes all comments — no need to also call `get_merge_request_notes`)
 2. Separate comments by author:
    - **From reviewers** (not the MR author) → review feedback signals
-   - **From the author** (self-comments) → ignore for weakness analysis
-4. For each reviewer comment, categorize by theme:
+   - **From the author** (replies to reviewer feedback) → response pattern signals (see 3.3)
+3. For each reviewer comment, categorize by theme:
    - `correctness` — logic bugs, edge cases, race conditions
    - `error-handling` — missing catches, swallowed exceptions
    - `naming` — inconsistent or unclear naming
@@ -160,6 +162,19 @@ For each of the 5 selected MRs:
    - `security` — injection risks, auth gaps
    - `style` — formatting, conventions, readability
    - `other`
+
+### 3.3 Analyze Response to Review Feedback (zero extra API cost)
+
+From the same `mr_discussions` data, analyze how the colleague **responds** to reviewer comments:
+
+1. For each discussion thread, look at the reviewer's comment and the author's reply (if any)
+2. Classify each response pattern:
+   - **直接接受** — agrees and fixes without discussion → may indicate low resistance or genuine agreement
+   - **反問釐清** — asks questions before acting → shows critical thinking, wants to understand the "why"
+   - **推回並解釋** — pushes back with reasoning → has independent judgment and technical confidence
+   - **不回應但修改** — no reply but the code changes → action-oriented but less communicative
+   - **不回應也不改** — no reply and no change → potential blind spot or disagreement without voicing it
+3. Count the frequency of each pattern across all deep-inspected MRs
 
 ---
 
@@ -214,6 +229,7 @@ Focus on patterns that reflect the **human's decisions**, not AI-generated code 
 - **MR 規模習慣**: Average size, tendency toward large or small MRs (from Step 2 data)
 - **Commit 風格**: Commit message conventions (from MR titles as proxy)
 - **AI 整合品質**: Do AI-generated changes blend well with the codebase, or feel "dropped in"?
+- **回應 Review 的模式**: From Step 3.3, summarize the dominant response pattern and what it reveals about the colleague's decision-making style (e.g., "多數時候直接接受修改（70%），偶爾會推回並解釋理由（20%），顯示對 reviewer 信任度高但在特定領域有獨立判斷")
 
 ### 5.3 Review Judgment (Review 判斷力 — 從同事 review 別人的 MR 觀察)
 
@@ -304,6 +320,10 @@ issues_analyzed: {count of issues with colleague's comments}
 
 ### AI 整合品質
 - {AI 產出與 codebase 的融合程度}
+
+### 回應 Review 的模式
+- {主要模式及比例，例：直接接受 70% / 反問釐清 10% / 推回解釋 20%}
+- {這反映了什麼思維特質}
 
 ## Review 判斷力（從同事 review 別人的 MR 觀察）
 
