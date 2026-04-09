@@ -84,21 +84,15 @@ Record the resolved `username` and `display_name` for later use.
 
 This is the highest-signal source for understanding the colleague's **own voice** — issue discussions have minimal AI involvement.
 
-1. Fetch backend-related issues from the kanban backlog repo (`bwdsp/kanban/backlog`):
-   - First try: `list_issues` with `labels: ["RD_Backend"]`, `state: "all"`, `per_page: 100`
-   - Additionally: `list_issues` with `search: "backend"`, `state: "all"`, `per_page: 50`
-   - Merge and deduplicate the results
-2. Apply **time dispersion** — from the combined issue list, select up to **20 issues spread across time** (same 3-period strategy as Step 1.1)
-3. For each selected issue, call `list_issue_discussions` with `project_id: "bwdsp/kanban/backlog"`
-4. Filter to comments written **by the colleague** (match by username)
-5. Apply **time dispersion on comments** — from all collected comments, spread across time:
-   - Sort comments by timestamp
-   - Divide into 3 time periods, keep up to 5 comments per period
-   - This prevents over-representing a single sprint or project phase
-6. Collect the time-dispersed comments — these will be analyzed in Step 5 for:
-   - **關注面向**: What topics do they comment on? (architecture, timeline, scope, testing, deployment, dependencies...)
-   - **溝通語氣**: How do they communicate? (direct, diplomatic, questioning, instructive, collaborative...)
-   - **主動性**: Do they proactively raise concerns, or mainly respond to others?
+1. Fetch backend-related issues from `bwdsp/kanban/backlog`:
+   - `list_issues` with `labels: ["RD_Backend"]`, `state: "all"`, `per_page: 50`, `order_by: "updated_at"`, `sort: "desc"`
+2. **Prioritize high-discussion issues** — sort by comment count (from issue metadata), pick the **top 10 most-discussed issues**
+   - High-discussion issues have the densest signal; low-comment issues waste API calls
+3. From those 10 issues, ensure **time dispersion** — if they cluster in one period, swap some for older high-comment issues
+4. For each selected issue, call `list_issue_discussions` with `project_id: "bwdsp/kanban/backlog"`
+5. Filter to comments written **by the colleague** (match by username)
+6. Keep up to **15 comments total** — if more than 15, spread across 3 time periods (5 per period)
+7. These will be analyzed in Step 5 for: 關注面向、溝通語氣、主動性
 
 ### 1.3 MRs Reviewed by the Colleague
 
@@ -115,24 +109,20 @@ This is the highest-signal source for understanding the colleague's **own voice*
 
 ## Step 2 — Collect Metadata & Classify MRs
 
-For **all** MRs from Step 1 (batch calls where possible):
+### 2.1 Classify from MR Metadata (no extra API calls)
 
-1. Call `list_merge_request_changed_files` for each MR to get:
-   - File paths and count
-   - File types (extensions)
-   - Estimated change size (additions + deletions)
-2. Classify each MR by type based on title and description:
-   - `feature` / `bugfix` / `refactor` / `chore` / `docs` / `other`
-3. Record MR size category:
-   - Small (≤5 files), Medium (6–15 files), Large (>15 files)
+From the MR metadata already fetched in Step 1.1 (title, description):
 
-### Select 5 MRs for Deep Inspection
+1. Classify each MR by type: `feature` / `bugfix` / `refactor` / `chore` / `docs` / `other`
+2. Skip MRs that are clearly auto-generated (title contains "bump", "dependency update", etc.)
 
-Choose 5 MRs that maximize diversity and insight:
+### 2.2 Select 5 MRs for Deep Inspection
 
-- Prefer MRs with **more changed files** (larger scope = more patterns)
+Choose 5 MRs that maximize diversity:
+
+- Spread across the 3 time periods (avoid clustering)
 - Prefer **variety of MR types** (don't pick 5 bugfixes)
-- **Skip** MRs that are purely auto-generated (dependency bumps, migrations only)
+- Only call `list_merge_request_changed_files` for these 5 MRs (not all 15)
 
 ---
 
@@ -142,7 +132,7 @@ For each of the 5 selected MRs:
 
 ### 3.1 Read Representative Diffs
 
-1. From the file list (Step 2), select **3–5 representative files**:
+1. From the file list (Step 2.2), select **3 representative files** (strict limit to save context):
    - Prioritize business logic files (`.cs`, `.py`, `.ts`, `.tsx`, `.go`)
    - Skip generated files: migrations, lock files, `.designer.cs`, compiled assets, snapshots
    - Skip config-only changes: `.json`, `.yml`, `.csproj` (unless they are the main change)
@@ -156,9 +146,8 @@ For each of the 5 selected MRs:
 
 ### 3.2 Read Review Discussions
 
-1. Call `mr_discussions` to get all discussion threads
-2. Call `get_merge_request_notes` to get all comments
-3. Separate comments by author:
+1. Call `mr_discussions` to get all discussion threads (includes all comments — no need to also call `get_merge_request_notes`)
+2. Separate comments by author:
    - **From reviewers** (not the MR author) → review feedback signals
    - **From the author** (self-comments) → ignore for weakness analysis
 4. For each reviewer comment, categorize by theme:
@@ -180,16 +169,15 @@ For each of the 5 selected MRs:
 
 For each of the remaining authored MRs (not deep-inspected):
 
-1. Call `mr_discussions` and `get_merge_request_notes`
+1. Call `mr_discussions` only (no diffs, no `get_merge_request_notes`)
 2. Apply the same reviewer comment categorization from Step 3.2
-3. Do **NOT** read any diffs — rely on metadata from Step 2
 
 ### 4.2 Analyze the Colleague's Own Review Comments
 
-For each MR from Step 1.2 (MRs the colleague reviewed):
+For each MR from Step 1.3 (MRs the colleague was assignee on):
 
-1. Call `mr_discussions` and `get_merge_request_notes`
-2. Filter to comments written **by the colleague** (they are the reviewer here)
+1. Call `mr_discussions` only
+2. Filter to comments written **by the colleague**
 3. Analyze their review style and judgment:
    - **What they catch**: Which categories do they comment on? (correctness, architecture, testing, style...)
    - **Depth of feedback**: Do they give actionable suggestions or just point out problems?
@@ -382,8 +370,11 @@ After writing the file, output a summary:
 
 ## Constraints
 
-- **Context window 管理**: Never load all diffs at once. Maximum 5 MRs × 5 files = 25 file diffs total.
-- **批次呼叫**: Batch MCP calls where possible (e.g., get all file lists before selecting MRs to deep-inspect).
+- **Token 節約原則**: Minimize API calls and context usage at every step.
+  - `list_merge_request_changed_files` → only for the 5 deep-inspected MRs, not all 15
+  - `mr_discussions` → sufficient alone; do NOT also call `get_merge_request_notes` (redundant data)
+  - File diffs → maximum 5 MRs × 3 files = 15 file diffs total
+  - Issue discussions → only fetch from top 10 most-discussed issues
 - **不要問不必要的問題**: Infer project from origin, resolve username automatically. Only ask the user when there is genuine ambiguity (multiple name matches).
 - **跳過無意義的 MR**: Skip MRs that are pure dependency bumps, auto-generated, or have zero review discussions.
 - **Profile 證據門檻**: Only include blind spots that appear in 20%+ of MRs. Do not list one-off issues.
