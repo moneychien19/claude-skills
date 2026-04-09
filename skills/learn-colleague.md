@@ -80,7 +80,27 @@ Record the resolved `username` and `display_name` for later use.
    - Continue with whatever is available
 4. For each MR, record: IID, title, description, created_at, merged_at
 
-### 1.2 MRs Reviewed by the Colleague
+### 1.2 Issue Comments from Kanban Backlog
+
+This is the highest-signal source for understanding the colleague's **own voice** — issue discussions have minimal AI involvement.
+
+1. Fetch backend-related issues from the kanban backlog repo (`bwdsp/kanban/backlog`):
+   - First try: `list_issues` with `labels: ["RD_Backend"]`, `state: "all"`, `per_page: 100`
+   - Additionally: `list_issues` with `search: "backend"`, `state: "all"`, `per_page: 50`
+   - Merge and deduplicate the results
+2. Apply **time dispersion** — from the combined issue list, select up to **20 issues spread across time** (same 3-period strategy as Step 1.1)
+3. For each selected issue, call `list_issue_discussions` with `project_id: "bwdsp/kanban/backlog"`
+4. Filter to comments written **by the colleague** (match by username)
+5. Apply **time dispersion on comments** — from all collected comments, spread across time:
+   - Sort comments by timestamp
+   - Divide into 3 time periods, keep up to 5 comments per period
+   - This prevents over-representing a single sprint or project phase
+6. Collect the time-dispersed comments — these will be analyzed in Step 5 for:
+   - **關注面向**: What topics do they comment on? (architecture, timeline, scope, testing, deployment, dependencies...)
+   - **溝通語氣**: How do they communicate? (direct, diplomatic, questioning, instructive, collaborative...)
+   - **主動性**: Do they proactively raise concerns, or mainly respond to others?
+
+### 1.3 MRs Reviewed by the Colleague
 
 1. Call `list_merge_requests` with:
    - `project_id`: the resolved project path
@@ -215,7 +235,18 @@ From Step 4.2 analysis, summarize:
 - **容易忽略的面向**: What do they tend to miss that other reviewers catch?
 - **Review 風格**: Broad/shallow vs. focused/deep? Actionable suggestions vs. vague comments?
 
-### 5.4 Strengths to Skip (可跳過的強項)
+### 5.4 Voice & Communication (溝通風格 — 從 Issue 留言觀察)
+
+From Step 1.2 issue comments, summarize:
+
+- **關注面向**: What does this person care about most in discussions? (e.g., always asks about performance impact, always raises deployment concerns, focuses on user experience)
+- **溝通語氣**: How do they express themselves? Quote 2–3 representative comments as evidence. Describe the tone (direct/diplomatic, concise/verbose, questioning/assertive)
+- **主動性**: Do they proactively flag risks and suggest solutions, or mainly respond when asked?
+- **技術深度**: Do their comments show deep domain knowledge in specific areas?
+
+This section has the **least AI contamination** — it reflects the colleague's authentic thinking and communication patterns.
+
+### 5.5 Strengths to Skip (可跳過的強項)
 
 Identify areas where:
 - Reviewer feedback is consistently **absent** (no complaints = solid)
@@ -224,7 +255,7 @@ Identify areas where:
 
 For each strength, cite evidence (e.g., "15 個 MR 中有 13 個都有完整的單元測試")
 
-### 5.5 Review Guidance (Review 指南)
+### 5.6 Review Guidance (Review 指南)
 
 Translate the above into actionable reviewer advice:
 
@@ -255,6 +286,7 @@ project: {project_path}
 analyzed_at: {YYYY-MM-DD}
 mrs_analyzed: {count}
 mrs_as_assignee: {count of MRs where colleague was assignee}
+issues_analyzed: {count of issues with colleague's comments}
 ---
 
 ## 盲區（同事 + AI 仍會漏掉的）
@@ -296,6 +328,18 @@ mrs_as_assignee: {count of MRs where colleague was assignee}
 ### Review 風格
 - {review 的深度與廣度描述}
 
+## 溝通風格（從 Issue 留言觀察，AI 介入最少）
+
+### 關注面向
+- {同事在討論中最關心的主題}
+
+### 溝通語氣
+- {語氣描述}
+- 代表性發言：「{引用}」
+
+### 主動性
+- {主動提出 vs 被動回應的傾向}
+
 ## 可跳過的強項
 - **[類別]**: {描述} — {證據}
 
@@ -314,7 +358,8 @@ mrs_as_assignee: {count of MRs where colleague was assignee}
 - 分析日期: {date}
 - 已合併 MR: !{iid}, !{iid}, ...
 - 詳細檢視: !{iid}, !{iid}, !{iid}, !{iid}, !{iid}
-- Review 過的 MR: !{iid}, !{iid}, ...
+- Assignee 的 MR: !{iid}, !{iid}, ...
+- Issue 留言來源: bwdsp/kanban/backlog #{iid}, #{iid}, ...
 ```
 
 ### 6.3 Handle Existing Profiles
@@ -326,11 +371,12 @@ mrs_as_assignee: {count of MRs where colleague was assignee}
 
 After writing the file, output a summary:
 
-1. 分析了幾個 MR（authored + reviewed）
+1. 分析了幾個 MR（authored + assignee）+ 幾個 issue 留言
 2. 發現的主要盲區（top 2–3）
 3. 發現的主要強項（top 1–2）
-4. Review 判斷力摘要（一句話）
-5. Profile 檔案路徑
+4. 溝通風格摘要（一句話）
+5. Review 判斷力摘要（一句話）
+6. Profile 檔案路徑
 
 ---
 

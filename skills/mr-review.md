@@ -49,25 +49,28 @@ The goal of this step is:
 - Retrieve title / description / source branch / target branch / author
 - Do not attempt to read the complete diff
 
-### 0.3 Load Author's Working Style Profile (if available)
+### 0.3 Load Team Working Style Profiles
 
-After identifying the MR author from Step 0.2:
+After identifying the MR author and project from Steps 0.1–0.2:
 
 1. Extract the project path from the origin URL (e.g., `bwdsp/controlpanelapi`)
-2. Check if a profile exists at: `~/.claude/skills/colleagues/<project_path>/<author_username>.md`
-   - The username may contain dots (e.g., `lynn.chien.md`) — this is expected
-3. If the profile exists:
-   - Read the **「Review 指南」** section
-   - Use it to adjust review focus in Step 2:
+2. List all profile files in `~/.claude/skills/colleagues/<project_path>/`
+   - Filenames may contain dots (e.g., `lynn.chien.md`) — this is expected
+3. Read **all available profiles**, not just the MR author's:
+   - **Author's profile** → primary: use 「Review 指南」to adjust review focus in Step 2
      - **「重點關注」** items → treat as higher priority, promote potential findings to Tier A more readily
      - **「可以快速通過的部分」** items → these areas can be reviewed more lightly
-     - **「互補建議」** → note but do not output; this is for team-level awareness
-   - Mention at the beginning of Step 1 output: 「已載入 {display_name} 的工作模式 profile（分析日期：{analyzed_at}）」
-4. If no profile exists: proceed normally without any mention
+   - **Other colleagues' profiles** → supplementary: use their 「Review 判斷力」and 「溝通風格」to enrich your review perspective
+     - Consider what each colleague would likely focus on or miss when reviewing this MR
+     - Synthesize a **multi-perspective review**: "同事 A 可能會注意到 X，同事 B 可能會漏掉 Y"
+4. At the beginning of Step 1 output:
+   - If author profile exists: 「已載入 {display_name} 的工作模式 profile（分析日期：{analyzed_at}）」
+   - If other profiles exist: 「同時參考了 {N} 位同事的 review 觀點」
+5. If no profiles exist at all: proceed normally without any mention
 
 ---
 
-### 0.3 Large Diff Restriction Strategy (must follow)
+### 0.4 Large Diff Restriction Strategy (must follow)
 
 - **Prohibited** to read the complete diff all at once
 - First understand:
@@ -78,7 +81,7 @@ After identifying the MR author from Step 0.2:
 
 ---
 
-### 0.4 Cross-cutting Change Detection
+### 0.5 Cross-cutting Change Detection
 
 If:
 - Many files are changed
@@ -92,7 +95,7 @@ Treat it as a **cross-cutting change**, focusing on:
 
 ---
 
-### 0.5 Identify Tech Stack & System Context
+### 0.6 Identify Tech Stack & System Context
 
 Before starting the review, identify the tech stack from the changed files (`.cs`, `.py`, `.jsx`/`.tsx`, `.yml`, etc.) so that the appropriate convention checks are applied in later steps.
 
