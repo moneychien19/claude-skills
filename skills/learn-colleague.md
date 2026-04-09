@@ -64,13 +64,18 @@ Record the resolved `username` and `display_name` for later use.
 
 ### 1.1 MRs Authored by the Colleague
 
+⚠️ **Time Dispersion Rule**: Do NOT just take the most recent N MRs. Concentrated time periods likely reflect the same project/task, leading to homogeneous patterns and biased profiles.
+
 1. Call `list_merge_requests` with:
    - `project_id`: the resolved project path
    - `author_username`: the resolved username
    - `state`: `"merged"`
-   - `per_page`: `20`
-2. Take the **15 most recent** merged MRs
-3. If fewer than 5 MRs are returned:
+   - `per_page`: `100`
+2. From the results, **select 15 MRs spread across time**:
+   - Divide the MR list's time range (from oldest to newest) into **3 roughly equal periods**
+   - Pick **5 MRs from each period**, prioritizing diversity of MR types within each period
+   - If a period has fewer than 5 MRs, take all and compensate from adjacent periods
+3. If total available MRs are fewer than 5:
    - Warn the user: 「該同事的已合併 MR 不足 5 個，產出的 profile 可能不夠完整。」
    - Continue with whatever is available
 4. For each MR, record: IID, title, description, created_at, merged_at
@@ -79,10 +84,10 @@ Record the resolved `username` and `display_name` for later use.
 
 1. Call `list_merge_requests` with:
    - `project_id`: the resolved project path
-   - `assignee_username`: the resolved username (in this team's workflow, the assignee is the reviewer)
+   - `assignee_username`: the resolved username (in this team's workflow, the assignee is the primary reviewer)
    - `state`: `"merged"`
    - `per_page`: `10`
-2. Take up to **10 MRs** where the colleague was the assignee (reviewer)
+2. Take up to **10 MRs** where the colleague was the assignee
 3. **Exclude** MRs where the colleague is also the author (self-assigned)
 4. These will be used in Step 4.2 to analyze their review judgment
 
@@ -249,7 +254,7 @@ display_name: {display_name}
 project: {project_path}
 analyzed_at: {YYYY-MM-DD}
 mrs_analyzed: {count}
-mrs_reviewed: {count of MRs where colleague was reviewer}
+mrs_as_assignee: {count of MRs where colleague was assignee}
 ---
 
 ## 盲區（同事 + AI 仍會漏掉的）
@@ -283,10 +288,10 @@ mrs_reviewed: {count of MRs where colleague was reviewer}
 ## Review 判斷力（從同事 review 別人的 MR 觀察）
 
 ### 擅長發現的問題
-- {同事作為 reviewer 時常抓到的問題類型}
+- {同事作為 assignee review 時常抓到的問題類型}
 
 ### 容易忽略的面向
-- {同事作為 reviewer 時容易漏掉的}
+- {同事作為 assignee review 時容易漏掉的}
 
 ### Review 風格
 - {review 的深度與廣度描述}
