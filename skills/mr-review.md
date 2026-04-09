@@ -49,6 +49,22 @@ The goal of this step is:
 - Retrieve title / description / source branch / target branch / author
 - Do not attempt to read the complete diff
 
+### 0.3 Load Author's Working Style Profile (if available)
+
+After identifying the MR author from Step 0.2:
+
+1. Extract the project path from the origin URL (e.g., `bwdsp/controlpanelapi`)
+2. Check if a profile exists at: `~/.claude/skills/colleagues/<project_path>/<author_username>.md`
+   - The username may contain dots (e.g., `lynn.chien.md`) — this is expected
+3. If the profile exists:
+   - Read the **「Review 指南」** section
+   - Use it to adjust review focus in Step 2:
+     - **「重點關注」** items → treat as higher priority, promote potential findings to Tier A more readily
+     - **「可以快速通過的部分」** items → these areas can be reviewed more lightly
+     - **「互補建議」** → note but do not output; this is for team-level awareness
+   - Mention at the beginning of Step 1 output: 「已載入 {display_name} 的工作模式 profile（分析日期：{analyzed_at}）」
+4. If no profile exists: proceed normally without any mention
+
 ---
 
 ### 0.3 Large Diff Restriction Strategy (must follow)
