@@ -4,6 +4,8 @@ A personal repository for managing Claude Code skills.
 
 Skills are authored as flat `.md` files under `skills/`. The install script converts them into the directory structure Claude Code requires (`~/.claude/skills/<name>/SKILL.md`).
 
+Optional companion files (rosters, configs, reference data) live under `assets/<skill-name>/` and are deployed alongside the skill at `~/.claude/skills/<name>/`.
+
 ## Installation
 
 Works on macOS, Linux, and Windows (Bash).
@@ -25,7 +27,15 @@ curl -fsSL https://raw.githubusercontent.com/moneychien19/claude-skills/main/ins
    Skill instructions here.
    ```
 
-2. Run the install script to deploy it locally.
+2. (Optional) Add companion files at `assets/<name>/`:
+
+   ```
+   assets/
+     <name>/
+       roster.md       # or config.json, reference.md, etc.
+   ```
+
+3. Run the install script to deploy it locally. The script copies `skills/<name>.md` → `~/.claude/skills/<name>/SKILL.md` and any `assets/<name>/*` → `~/.claude/skills/<name>/*`.
 
 ## Develop
 
